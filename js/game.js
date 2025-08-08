@@ -5,20 +5,35 @@ const WIZARD_CONFIG = {
     points: 1,
     escapeTime: 5000,
     spawnChance: 0.65,
+    escapePenalty: 1,
+    escapeSound: "somEscape",
+  },
+  rapido: {
+    texture: "maguinho2",
+    health: 2,
+    points: 2,
+    escapeTime: 6000,
+    spawnChance: 0.2,
+    escapePenalty: 2, // Penalidade de 2 escapes
+    escapeSound: "somEscapeRapido",
   },
   dourado: {
     texture: "magoDourado",
     health: 3,
     points: 5,
     escapeTime: 7000,
-    spawnChance: 0.15,
+    spawnChance: 0.1,
+    escapePenalty: 1,
+    escapeSound: "somEscape",
   },
   fantasma: {
     texture: "magoFantasma",
     health: 4,
     points: 3,
     escapeTime: 9000,
-    spawnChance: 0.2,
+    spawnChance: 0.15,
+    escapePenalty: 1,
+    escapeSound: "somEscape",
   },
 };
 
@@ -35,6 +50,7 @@ class GameScene extends Phaser.Scene {
     console.log("Carregando assets...");
     // Carrega as imagens
     this.load.image("maguinho", "assets/img/maguinho.webp");
+    this.load.image("maguinho2", "assets/img/maguinho2.png");
     this.load.image("magoDourado", "assets/img/mago-nivel-3.png");
     this.load.image("magoFantasma", "assets/img/mago-1-2.png");
 
@@ -59,6 +75,10 @@ class GameScene extends Phaser.Scene {
 
     // SONS MAGUINHO DOURADO
     this.load.audio("somMorteDourado", "assets/audio/Maguinho/peppino-angry-scream-ear-rape.mp3");
+
+    // SONS MAGUINHO2
+    this.load.audio("somEscape2", "assets/audio/the-simpsons-nelsons-haha.mp3");
+    this.load.audio("magoBaleado", "assets/audio/Maguinho/Zé-Wilker-Filho-da-puta (mp3cut.net).mp3");
   }
 
   create() {
@@ -121,6 +141,8 @@ class GameScene extends Phaser.Scene {
       wizardTypeKey = "dourado";
     } else if (chance < WIZARD_CONFIG.dourado.spawnChance + WIZARD_CONFIG.fantasma.spawnChance) {
       wizardTypeKey = "fantasma";
+    } else if (chance < WIZARD_CONFIG.dourado.spawnChance + WIZARD_CONFIG.fantasma.spawnChance + WIZARD_CONFIG.rapido.spawnChance) {
+      wizardTypeKey = "rapido";
     } else {
       wizardTypeKey = "comum";
     }
@@ -137,6 +159,7 @@ class GameScene extends Phaser.Scene {
       health: config.health,
       points: config.points,
       type: wizardTypeKey,
+      foiAtingido: false,
       isDying: false,
     });
 
@@ -175,6 +198,8 @@ class GameScene extends Phaser.Scene {
             repeat: -1,
           });
           wizard.setData("moveTween", moveTween);
+        } else if (wizardTypeKey === "rapido") {
+          this.iniciarMovimentoRapido(wizard);
         } else {
           const moveTween = this.tweens.add({
             targets: wizard,
@@ -192,7 +217,7 @@ class GameScene extends Phaser.Scene {
 
     // LOGICA DE CLIQUE NO MAGO
     wizard.on("pointerdown", () => {
-      if (!wizard.active) {
+      if (!wizard.active || wizard.getData("isDying")) {
         return;
       }
 
@@ -276,7 +301,11 @@ class GameScene extends Phaser.Scene {
         }
       } else if (wizard.getData("type") === "fantasma") {
         wizard.disableInteractive();
-        this.sound.play("somFantasmaTeleporte", { volume: 0.5 });
+
+        if (!wizard.getData("foiAtingido")) {
+          this.sound.play("somFantasmaTeleporte", { volume: 0.5 });
+          wizard.setData("foiAtingido", true);
+        }
         this.sound.play("somTeleporte", { volume: 0.5 });
         if (wizard.getData("moveTween")) {
           wizard.getData("moveTween").stop();
@@ -316,6 +345,38 @@ class GameScene extends Phaser.Scene {
             });
           },
         });
+      } else if (wizard.getData("type") === "rapido" && !wizard.getData("foiAtingido")) {
+        if (wizard.getData("moveTween")) wizard.getData("moveTween").stop();
+
+        this.sound.play("magoBaleado", { volume: 0.8 });
+        wizard.setData("foiAtingido", true);
+        wizard.disableInteractive();
+        this.tweens.add({
+          targets: wizard,
+          scaleX: wizard.scaleX * 1.2, // Efeito de "esticar"
+          scaleY: wizard.scaleY * 0.8,
+          alpha: 0.5,
+          duration: 100,
+          yoyo: true, // Volta ao normal
+          onComplete: () => {
+            const newX = Phaser.Math.Between(100, this.game.config.width - 100);
+            const newY = Phaser.Math.Between(100, this.game.config.height - 100);
+
+            // Mova para a nova posição MUITO rápido
+            this.tweens.add({
+              targets: wizard,
+              x: newX,
+              y: newY,
+              duration: 150, // Duração da esquiva
+              ease: "Quad.easeOut",
+              onComplete: () => {
+                // Ao terminar a esquiva, reative e continue o movimento
+                wizard.setInteractive({ useHandCursor: true });
+                this.iniciarMovimentoRapido(wizard); // Reinicia o padrão de movimento
+              },
+            });
+          },
+        });
       } else {
         this.tweens.add({
           targets: wizard,
@@ -331,9 +392,12 @@ class GameScene extends Phaser.Scene {
     // TIMER DE ESCAPE
     wizard.escapeTimer = this.time.delayedCall(config.escapeTime, () => {
       if (wizard.active) {
-        this.sound.play("somEscape", { volume: 0.9 });
-        this.escapedWizards++;
+        this.sound.play(config.escapeSound, { volume: 0.9 });
+
+        this.escapedWizards += config.escapePenalty;
+
         this.escapesText.setText(`Escaparam: ${this.escapedWizards} / ${this.limiteDeEscapes}`);
+
         this.tweens.add({
           targets: wizard,
           y: y - 50,
@@ -376,6 +440,23 @@ class GameScene extends Phaser.Scene {
     });
 
     wizard.setData("moveTimer", moveTween);
+  }
+
+  iniciarMovimentoRapido(wizard) {
+    if (!wizard.active || wizard.getData("isDying")) {
+      return;
+    }
+
+    const moveTween = this.tweens.add({
+      targets: wizard,
+      x: wizard.x + Phaser.Math.Between(-60, 60),
+      y: wizard.y + Phaser.Math.Between(-60, 60),
+      duration: Phaser.Math.Between(1000, 2000),
+      ease: "sine.inOut",
+      yoyo: true,
+      repeat: -1,
+    });
+    wizard.setData("moveTween", moveTween);
   }
 
   endGame(playerWon) {
