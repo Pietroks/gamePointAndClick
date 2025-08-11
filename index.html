@@ -5,32 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Minigame do Mago - Phaser</title>
     <style>
-      /* Remove margens e garante que tudo ocupe a tela toda */
       html,
       body {
         margin: 0;
         padding: 0;
         width: 100%;
         height: 100%;
-        overflow: hidden; /* Esconde barras de rolagem */
+        overflow: hidden;
+        background: #111;
       }
-
       body {
         display: flex;
         justify-content: center;
         align-items: center;
-        background: #111;
       }
-
-      /* O canvas do jogo */
       canvas {
         border-radius: 12px;
         box-shadow: 0 0 20px #8a2be2;
       }
     </style>
-    <script src="//cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
   </head>
   <body>
+    <noscript>Ative o JavaScript para jogar.</noscript>
     <script src="js/game.js"></script>
   </body>
 </html>
